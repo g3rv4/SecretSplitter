@@ -16,6 +16,8 @@ internal sealed class SplitCommand : Command<SplitCommand.Settings>
 
     public override int Execute([NotNull] CommandContext context, [NotNull] Settings settings)
     {
+        var title = AnsiConsole.Prompt(new TextPrompt<string>("Enter a title for the secret: "));
+
         int totalParts, requiredParts;
         do
         {
@@ -51,6 +53,42 @@ internal sealed class SplitCommand : Command<SplitCommand.Settings>
                     }));
         } while (!AnsiConsole.Confirm($"Split the secret in {totalParts} requiring {requiredParts}?"));
         
+        var groups = AnsiConsole.Prompt(
+            new TextPrompt<string>("[gray]Optional[/] How do you want to group the results?")
+                .ValidationErrorMessage($"[red]Please enter comma separated values, they should add up {totalParts}[/]")
+                .AllowEmpty()
+                .Validate(groups =>
+                {
+                    int[] numbers;
+                    try
+                    {
+                        numbers = groups.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                            .Select(e => int.Parse(e))
+                            .ToArray();
+                    }
+                    catch (Exception)
+                    {
+                        return ValidationResult.Error($"[red]Please enter comma separated values that are numeric[/]");
+                    }
+
+                    return numbers.Sum() == totalParts
+                        ? ValidationResult.Success()
+                        : ValidationResult.Error($"[red]The parts should add up to {totalParts}[/]");
+                }));
+
+        int[] sharesPerGroup;
+        if (string.IsNullOrEmpty(groups))
+        {
+            sharesPerGroup = new int[totalParts];
+            Array.Fill(sharesPerGroup, 1);
+        }
+        else
+        {
+            sharesPerGroup = groups.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                .Select(e => int.Parse(e))
+                .ToArray();
+        }
+
         var secret = AnsiConsole.Prompt(new TextPrompt<string>("Enter the secret to split:")
             .PromptStyle("red"));
         
@@ -60,26 +98,45 @@ internal sealed class SplitCommand : Command<SplitCommand.Settings>
         var shares = split.MakeShares(requiredParts, totalParts, secret);
         
         var qrGenerator = new QRCodeGenerator();
-        int i = 1;
-        foreach (var share in shares)
+        var currentShare = 0;
+        var currentGroup = 1;
+        foreach (var quantity in sharesPerGroup)
         {
-            QRCodeData qrCodeData = qrGenerator.CreateQrCode(share.ToString(), QRCodeGenerator.ECCLevel.Q);
-            var qrCode = new PngByteQRCode(qrCodeData);
-            var image = qrCode.GetGraphic(20);
-
             var txt = $@"
 <html>
 <body>
   <center>
-    <img src=""data:image/png;base64, {Convert.ToBase64String(image)}"" style=""max-width: 300px; max-height: 300px"" />
-    <br />
-    <span>{share.ToString()}</span>
-</body>
-</html>
+    <h1>{title}</h1>
+    <h2>{DateTime.UtcNow.ToString("yyyy-MM-dd HH\\:mm\\:ss")}</h2>
+<table>
 ";
-            File.WriteAllText($"share{i++}.html", txt);
-        }
+            for (var i = 0; i < quantity; i++)
+            {
+                var share = shares[currentShare];
+                
+                QRCodeData qrCodeData = qrGenerator.CreateQrCode(share.ToString(), QRCodeGenerator.ECCLevel.Q);
+                var qrCode = new PngByteQRCode(qrCodeData);
+                var image = qrCode.GetGraphic(20);
 
+                txt += $@"
+<tr>
+<td>
+<img src=""data:image/png;base64, {Convert.ToBase64String(image)}"" style=""max-width: 300px; max-height: 300px"" />
+</td>
+<td style=""overflow-wrap: break-word;max-width: 500px;"">
+    {share.ToString()}
+</td>";
+
+                currentShare++;
+            }
+            
+            txt += $@"
+</table>    
+</body>
+</html>";
+            File.WriteAllText($"group{currentGroup++}.html", txt);
+        }
+        
         return 0;
     }
 }
