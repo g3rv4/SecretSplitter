@@ -1,19 +1,14 @@
-using System.Diagnostics.CodeAnalysis;
+using System;
 using System.Numerics;
 using SecretSharingDotNet.Cryptography;
 using SecretSharingDotNet.Math;
 using Spectre.Console;
-using Spectre.Console.Cli;
 
-namespace SecretSplitter.Cli.Commands;
+namespace SecretSplitter.Commands;
 
-internal sealed class RestoreCommand : Command<RestoreCommand.Settings>
+internal sealed class RestoreCommand
 {
-    public sealed class Settings : CommandSettings
-    {
-    }
-    
-    public override int Execute([NotNull] CommandContext context, [NotNull] Settings settings)
+    public static void Execute()
     {
         var parts = AnsiConsole.Prompt(
             new TextPrompt<int>("How many parts do you have?")
@@ -47,7 +42,5 @@ internal sealed class RestoreCommand : Command<RestoreCommand.Settings>
         {
             AnsiConsole.MarkupLine("[red]Could not reconstruct the secret[/]. Exception: " + e.Message);
         }
-
-        return 0;
     }
 }

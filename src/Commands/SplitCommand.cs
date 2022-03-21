@@ -1,20 +1,18 @@
-using System.Diagnostics.CodeAnalysis;
+using System;
+using System.Linq;
 using System.Numerics;
+using System.Threading.Tasks;
+using PuppeteerSharp;
 using QRCoder;
 using SecretSharingDotNet.Cryptography;
 using SecretSharingDotNet.Math;
 using Spectre.Console;
-using Spectre.Console.Cli;
 
-namespace SecretSplitter.Cli.Commands;
+namespace SecretSplitter.Commands;
 
-internal sealed class SplitCommand : Command<SplitCommand.Settings>
+internal sealed class SplitCommand
 {
-    public sealed class Settings : CommandSettings
-    {
-    }
-
-    public override int Execute([NotNull] CommandContext context, [NotNull] Settings settings)
+    public static async Task ExecuteAsync()
     {
         var title = AnsiConsole.Prompt(new TextPrompt<string>("Enter a title for the secret: "));
 
@@ -100,16 +98,38 @@ internal sealed class SplitCommand : Command<SplitCommand.Settings>
         var qrGenerator = new QRCodeGenerator();
         var currentShare = 0;
         var currentGroup = 1;
+
+        var browserLauchOptions = new LaunchOptions
+        {
+            Headless = true
+        };
+
+        var executable = Environment.GetEnvironmentVariable("CHROMIUM_EXECUTABLE");
+        if (string.IsNullOrEmpty(executable))
+        {
+            using var browserFetcher = new BrowserFetcher();
+            await browserFetcher.DownloadAsync();
+        }
+        else
+        {
+            browserLauchOptions.Args = new[] { "--no-sandbox" };
+            browserLauchOptions.ExecutablePath = executable;
+        }
+        
+        await using var browser = await Puppeteer.LaunchAsync(browserLauchOptions);
+        await using var page = await browser.NewPageAsync();
+
         foreach (var quantity in sharesPerGroup)
         {
-            var txt = $@"
+            var txt = @"
 <html>
+<head><style>
+    .pagebreak { page-break-before: always; }
+    h1 { margin: 0; }
+</style></head>
 <body>
   <center>
-    <h1>{title}</h1>
-    <h2>{DateTime.UtcNow.ToString("yyyy-MM-dd HH\\:mm\\:ss")}</h2>
-<table>
-";
+    ";
             for (var i = 0; i < quantity; i++)
             {
                 var share = shares[currentShare];
@@ -118,25 +138,36 @@ internal sealed class SplitCommand : Command<SplitCommand.Settings>
                 var qrCode = new PngByteQRCode(qrCodeData);
                 var image = qrCode.GetGraphic(20);
 
+                if (i % 3 == 0)
+                {
+                    txt += $@"<div>&nbsp;</div><h1>{title}</h1><h3>{DateTime.UtcNow.ToString("yyyy-MM-dd HH\\:mm\\:ss")}</h2>";
+                }
+
                 txt += $@"
+<table>
 <tr>
 <td>
 <img src=""data:image/png;base64, {Convert.ToBase64String(image)}"" style=""max-width: 300px; max-height: 300px"" />
 </td>
-<td style=""overflow-wrap: break-word;max-width: 500px;"">
+<td style=""overflow-wrap: break-word;max-width: 400px;"">
     {share.ToString()}
-</td>";
+</td>
+</table>";
+
+                if (i % 3 == 2)
+                {
+                    txt += @"<div class=""pagebreak""> </div>";
+                }
 
                 currentShare++;
             }
             
-            txt += $@"
-</table>    
+            txt += $@"    
 </body>
 </html>";
-            File.WriteAllText($"group{currentGroup++}.html", txt);
+
+            await page.GoToAsync("data:text/html," + txt);
+            await page.PdfAsync($"group{currentGroup}.pdf");
         }
-        
-        return 0;
     }
 }
