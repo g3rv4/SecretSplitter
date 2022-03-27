@@ -1,0 +1,50 @@
+name: build
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-amd64:
+    name: Build amd64
+    uses: ./.github/workflows/build-image-for-arch.yml
+    with:
+      architecture: amd64
+    secrets:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+  build-arm64v8:
+    name: Build arm64v8
+    uses: ./.github/workflows/build-image-for-arch.yml
+    with:
+      architecture: arm64v8
+    secrets:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+  push-manifest:
+    runs-on: ubuntu-latest
+    needs: [build-amd64, build-arm64v8]
+    steps:
+    - uses: Azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    - uses: Azure/get-keyvault-secrets@v1.1
+      with:
+        keyvault: "ActionsBuild"
+        secrets: 'DockerHubToken'
+      id: azureSecrets
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: g3rv4
+        password: ${{ steps.azureSecrets.outputs.DockerHubToken }}
+    - name: Build manifest
+      shell: pwsh
+      run: |
+        docker manifest create `
+               g3rv4/secretsplitter:latest `
+               --amend g3rv4/secretsplitter:amd64 `
+               --amend g3rv4/secretsplitter:arm64v8
+        docker manifest create `
+               g3rv4/secretsplitter:${{ needs.build-amd64.outputs.version }} `
+               --amend g3rv4/secretsplitter:${{ needs.build-amd64.outputs.version }}-amd64 `
+               --amend g3rv4/secretsplitter:${{ needs.build-amd64.outputs.version }}-arm64v8
+        docker manifest push g3rv4/secretsplitter:latest
+        docker manifest push g3rv4/secretsplitter:${{ needs.build-amd64.outputs.version }}

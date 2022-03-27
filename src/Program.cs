@@ -1,5 +1,13 @@
-﻿using SecretSplitter.Commands;
+﻿using System.Reflection;
+using SecretSplitter.Commands;
 using Spectre.Console;
+
+if (args.Length > 0 && args[0] == "version")
+{
+    var version = Assembly.GetExecutingAssembly().GetName().Version!;
+    Console.WriteLine($"{version.Major}.{version.Minor}.{version.Revision}");
+    return 0;
+}
 
 var action = AnsiConsole.Prompt(
     new SelectionPrompt<string>()
@@ -14,3 +22,5 @@ else
 {
     RestoreCommand.Execute();
 }
+
+return 0;

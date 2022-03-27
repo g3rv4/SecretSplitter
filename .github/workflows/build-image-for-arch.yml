@@ -1,0 +1,57 @@
+name: Build and push the project for a given arch
+
+on:
+  workflow_call:
+    inputs:
+      architecture:
+        required: true
+        type: string
+    secrets:
+      AZURE_CREDENTIALS:
+        required: true
+    outputs:
+      version:
+        description: "The version"
+        value: ${{ jobs.build_and_push_job.outputs.version }}
+
+jobs:
+  build_and_push_job:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.build.outputs.version }}
+    steps:
+    - uses: Azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    - uses: Azure/get-keyvault-secrets@v1.1
+      with:
+        keyvault: "ActionsBuild"
+        secrets: 'DockerHubToken'
+      id: azureSecrets
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: g3rv4
+        password: ${{ steps.azureSecrets.outputs.DockerHubToken }}
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0 # get entire git tree, required for nerdbank gitversioning
+    - name: 'Build'
+      id: build
+      shell: pwsh
+      run: |
+        Push-Location src
+        dotnet tool install -g nbgv
+        $version = (nbgv get-version --format json | ConvertFrom-Json).SemVer1
+        Pop-Location
+
+        if ('${{ inputs.architecture }}' -eq 'arm64v8') {
+          sudo apt-get install qemu binfmt-support qemu-user-static
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+        }
+
+        docker build . -t g3rv4/secretsplitter:${{ inputs.architecture }} --build-arg ARCH=${{ inputs.architecture }}
+        docker tag g3rv4/secretsplitter:${{ inputs.architecture }} g3rv4/secretsplitter:$version-${{ inputs.architecture }}
+        docker push g3rv4/secretsplitter:${{ inputs.architecture }}
+        docker push g3rv4/secretsplitter:$version-${{ inputs.architecture }}
+        Write-Host "::set-output name=version::$version"
