@@ -40,8 +40,8 @@ jobs:
       run: |
         docker manifest create `
                g3rv4/secretsplitter:latest `
-               --amend g3rv4/secretsplitter:amd64 `
-               --amend g3rv4/secretsplitter:arm64v8
+               --amend g3rv4/secretsplitter:latest-amd64 `
+               --amend g3rv4/secretsplitter:latest-arm64v8
         docker manifest create `
                g3rv4/secretsplitter:${{ needs.build-amd64.outputs.version }} `
                --amend g3rv4/secretsplitter:${{ needs.build-amd64.outputs.version }}-amd64 `
