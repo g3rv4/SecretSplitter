@@ -140,6 +140,10 @@ internal sealed class SplitCommand
 
                 if (i % 3 == 0)
                 {
+                    if (i > 0)
+                    {
+                        txt += @"<div class=""pagebreak""> </div>";
+                    }
                     txt += $@"<div>&nbsp;</div><h1>{title}</h1><h3>{DateTime.UtcNow.ToString("yyyy-MM-dd HH\\:mm\\:ss")}</h2>";
                 }
 
@@ -154,11 +158,6 @@ internal sealed class SplitCommand
 </td>
 </table>";
 
-                if (i % 3 == 2)
-                {
-                    txt += @"<div class=""pagebreak""> </div>";
-                }
-
                 currentShare++;
             }
             
@@ -167,7 +166,7 @@ internal sealed class SplitCommand
 </html>";
 
             await page.GoToAsync("data:text/html," + txt);
-            await page.PdfAsync($"group{currentGroup}.pdf");
+            await page.PdfAsync($"group{currentGroup++}.pdf");
         }
     }
 }
