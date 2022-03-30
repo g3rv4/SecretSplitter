@@ -1,7 +1,4 @@
-using System;
-using System.Linq;
 using System.Numerics;
-using System.Threading.Tasks;
 using PuppeteerSharp;
 using QRCoder;
 using SecretSharingDotNet.Cryptography;
@@ -92,9 +89,20 @@ internal sealed class SplitCommand
                 .ToArray();
         }
 
-        var secret = AnsiConsole.Prompt(new TextPrompt<string>("Enter the secret to split:")
-            .PromptStyle("red"));
-        
+        string secret, secretRepeated;
+        do
+        {
+            secret = AnsiConsole.Prompt(new TextPrompt<string>("Enter the secret to split:")
+                .PromptStyle("red").Secret());
+            secretRepeated = AnsiConsole.Prompt(new TextPrompt<string>("Enter the secret to split again:")
+                .PromptStyle("red").Secret());
+
+            if (secret != secretRepeated)
+            {
+                AnsiConsole.MarkupLine("[red]The secrets don't match, try again[/]");
+            }
+        } while (secret != secretRepeated);
+
         var gcd = new ExtendedEuclideanAlgorithm<BigInteger>();
 
         var split = new ShamirsSecretSharing<BigInteger>(gcd, 521);
@@ -124,6 +132,7 @@ internal sealed class SplitCommand
         await using var browser = await Puppeteer.LaunchAsync(browserLauchOptions);
         await using var page = await browser.NewPageAsync();
 
+        var filenames = new List<string>();
         foreach (var quantity in sharesPerGroup)
         {
             var txt = @"
@@ -172,7 +181,11 @@ internal sealed class SplitCommand
 </html>";
 
             await page.GoToAsync("data:text/html," + txt);
-            await page.PdfAsync($"group{currentGroup++}.pdf");
+            var filename = $"group{currentGroup++}.pdf";
+            filenames.Add(filename);
+            await page.PdfAsync(filename);
         }
+        
+        AnsiConsole.MarkupLine($"[green]Success![/] created the following files: [blue]{string.Join(", ", filenames)}[/]");
     }
 }
