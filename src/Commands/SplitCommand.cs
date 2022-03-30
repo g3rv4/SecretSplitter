@@ -52,11 +52,16 @@ internal sealed class SplitCommand
         } while (!AnsiConsole.Confirm($"Split the secret in {totalParts} requiring {requiredParts}?"));
         
         var groups = AnsiConsole.Prompt(
-            new TextPrompt<string>("[gray]Optional[/] How do you want to group the results?")
+            new TextPrompt<string>("[gray]Optional[/] How do you want to group the results? (if empty, it will generate one file per share)")
                 .ValidationErrorMessage($"[red]Please enter comma separated values, they should add up {totalParts}[/]")
                 .AllowEmpty()
                 .Validate(groups =>
                 {
+                    if (string.IsNullOrEmpty(groups))
+                    {
+                        return ValidationResult.Success();
+                    }
+                    
                     int[] numbers;
                     try
                     {
@@ -126,6 +131,7 @@ internal sealed class SplitCommand
 <head><style>
     .pagebreak { page-break-before: always; }
     h1 { margin: 0; }
+    h3 { margin-top: 10px; margin-bottom: 0; } 
 </style></head>
 <body>
   <center>
@@ -144,7 +150,7 @@ internal sealed class SplitCommand
                     {
                         txt += @"<div class=""pagebreak""> </div>";
                     }
-                    txt += $@"<div>&nbsp;</div><h1>{title}</h1><h3>{DateTime.UtcNow.ToString("yyyy-MM-dd HH\\:mm\\:ss")}</h2>";
+                    txt += $@"<div>&nbsp;</div><h1>{title}</h1><h3>{DateTime.UtcNow.ToString("yyyy-MM-dd HH\\:mm\\:ss")}</h3>";
                 }
 
                 txt += $@"
