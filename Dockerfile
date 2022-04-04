@@ -1,5 +1,5 @@
 ARG ARCH=
-FROM mcr.microsoft.com/dotnet/sdk:6.0.201-alpine3.15-${ARCH}
+FROM mcr.microsoft.com/dotnet/sdk:6.0.201-alpine3.15-amd64
 WORKDIR /var/src
 COPY src/* ./
 RUN dotnet publish -c Release -o /var/publish
